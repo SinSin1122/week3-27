@@ -1,0 +1,26 @@
+{
+  "entities": {
+    "Review": {
+      "title": "Review",
+      "description": "A food review for a campus restaurant",
+      "type": "object",
+      "properties": {
+        "restaurantName": { "type": "string", "description": "Name of the restaurant" },
+        "category": { "type": "string", "enum": ["一飯", "二飯", "校外"], "description": "Location category" },
+        "rating": { "type": "number", "description": "1-5 star rating" },
+        "comment": { "type": "string", "description": "User feedback" },
+        "likes": { "type": "number", "description": "Number of agreements" },
+        "status": { "type": "string", "enum": ["active", "done"], "description": "Processing status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp" },
+        "authorEmail": { "type": "string", "format": "email", "description": "User email" }
+      },
+      "required": ["restaurantName", "category", "rating", "comment", "likes", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Collection of all food reviews"
+    }
+  }
+}

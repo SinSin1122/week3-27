@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1024, height=768">
+    <title>Campus Food Rating Wall - Artistic Flair</title>
+    <style>
+        :root {
+            --bg: #0A0A0B;
+            --surface: #161618;
+            --accent: #FF5C00;
+            --accent-soft: rgba(255, 92, 0, 0.1);
+            --text: #F4F4F5;
+            --text-dim: #A1A1AA;
+            --border: #27272A;
+            --star: #FBBF24;
+            --agree: #00E676;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Selection style */
+        ::selection {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* Header & Leaderboard */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px 40px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+            z-index: 50;
+            background: rgba(10, 10, 11, 0.9);
+            backdrop-filter: blur(8px);
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -1.5px;
+            text-transform: uppercase;
+        }
+
+        .logo span {
+            color: var(--accent);
+        }
+
+        .leaderboard {
+            display: flex;
+            gap: 20px;
+        }
+
+        .leaderboard-item {
+            background: var(--surface);
+            padding: 8px 16px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .rank {
+            font-weight: 900;
+            font-style: italic;
+            color: var(--accent);
+            font-size: 18px;
+        }
+
+        .leaderboard-info span {
+            display: block;
+            font-size: 10px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .leaderboard-info strong {
+            font-size: 14px;
+        }
+
+        /* Main Content Layout */
+        main {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            padding: 40px;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+            background-color: var(--bg);
+            overflow-y: auto;
+        }
+
+        .sidebar-header h2 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .sidebar-header p {
+            font-size: 10px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group label {
+            font-size: 10px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+        }
+
+        input, select, textarea {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 12px;
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 14px;
+            transition: border-color 0.2s;
+            outline: none;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: rgba(255, 92, 0, 0.5);
+        }
+
+        .stars-input {
+            display: flex;
+            gap: 6px;
+            cursor: pointer;
+        }
+
+        .star-box {
+            font-size: 20px;
+            color: #27272A;
+            transition: color 0.1s;
+        }
+
+        .star-box.selected {
+            color: var(--star);
+        }
+
+        .submit-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 6px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: filter 0.2s;
+        }
+
+        .submit-btn:hover {
+            filter: brightness(1.1);
+        }
+
+        /* Wall Area */
+        .wall {
+            padding: 32px;
+            overflow-y: auto;
+            background-color: var(--bg);
+        }
+
+        .wall-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .wall-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .wall-title h2 {
+            font-size: 20px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: -0.5px;
+        }
+
+        .badge {
+            font-size: 10px;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        /* Filter Switch */
+        .filter-switch {
+            display: flex;
+            background: var(--surface);
+            padding: 4px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            gap: 4px;
+        }
+
+        .filter-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 10px;
+            font-weight: 700;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.2s;
+        }
+
+        .filter-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* Cards Grid */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            align-content: start;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            transition: border-color 0.3s;
+            position: relative;
+        }
+
+        .card:hover {
+            border-color: rgba(255, 92, 0, 0.2);
+        }
+
+        .card.done {
+            opacity: 0.5;
+            filter: grayscale(0.2);
+        }
+
+        .card-top {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            align-items: center;
+        }
+
+        .card-tags {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .tag-cat {
+            font-size: 10px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .tag-done {
+            font-size: 10px;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+        }
+
+        .card-time {
+            font-size: 11px;
+            color: var(--text-dim);
+        }
+
+        .card h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .done h3, .done p {
+            text-decoration: line-through;
+            color: var(--text-dim);
+        }
+
+        .card-stars {
+            color: var(--star);
+            font-size: 12px;
+            margin-bottom: 12px;
+        }
+
+        .card p {
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--text-dim);
+            margin-bottom: 20px;
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .card:hover p {
+            -webkit-line-clamp: unset;
+        }
+
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid var(--border);
+            padding-top: 16px;
+        }
+
+        .card-left-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .status-toggle-btn {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            font-size: 10px;
+            font-weight: 800;
+            padding: 4px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-toggle-btn:hover {
+            border-color: rgba(255, 92, 0, 0.4);
+            color: var(--text);
+        }
+
+        .card.done .status-toggle-btn {
+            background: #27272A;
+            color: var(--text-dim);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #27272A;
+        }
+
+        .done .status-dot {
+            background: var(--agree);
+            box-shadow: 0 0 8px var(--agree);
+        }
+
+        .user-label {
+            font-size: 10px;
+            color: var(--text-dim);
+            font-style: italic;
+        }
+
+        .agree-btn {
+            background: transparent;
+            border: 1px solid var(--agree);
+            color: var(--agree);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .agree-btn:hover {
+            background: rgba(0, 230, 118, 0.1);
+        }
+
+        /* Empty state */
+        .empty-state {
+            grid-column: 1 / -1;
+            padding: 100px 0;
+            text-align: center;
+            background: rgba(22, 22, 24, 0.5);
+            border: 2px dashed var(--border);
+            border-radius: 20px;
+            color: var(--text-dim);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">CAMPUS<span>BITES</span></div>
+        <div id="leaderboard" class="leaderboard">
+            <!-- Dynamic Leaderboard Items -->
+        </div>
+    </header>
+
+    <main>
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>發表食評</h2>
+                <p>分享你的校園美食體驗</p>
+            </div>
+
+            <form id="reviewForm" onsubmit="handleFormSubmit(event)">
+                <div class="form-group">
+                    <label>餐廳名稱</label>
+                    <input type="text" id="resName" placeholder="輸入店名..." required>
+                </div>
+
+                <div class="form-group">
+                    <label>分類</label>
+                    <select id="resCat">
+                        <option value="一飯">一飯</option>
+                        <option value="二飯">二飯</option>
+                        <option value="校外">校外</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>評分</label>
+                    <div id="starsInput" class="stars-input">
+                        <span class="star-box" data-value="1">★</span>
+                        <span class="star-box" data-value="2">★</span>
+                        <span class="star-box" data-value="3">★</span>
+                        <span class="star-box" data-value="4">★</span>
+                        <span class="star-box" data-value="5">★</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>評論</label>
+                    <textarea id="resComment" rows="5" placeholder="味道如何？有無雷點？" required></textarea>
+                </div>
+
+                <button type="submit" class="submit-btn">提交評分</button>
+            </form>
+        </aside>
+
+        <section class="wall">
+            <div class="wall-header">
+                <div class="wall-title">
+                    <h2>最新食評</h2>
+                    <span id="countBadge" class="badge">0</span>
+                </div>
+                
+                <div class="filter-switch">
+                    <button onclick="setFilter('all')" id="filter-all" class="filter-btn active">全部</button>
+                    <button onclick="setFilter('active')" id="filter-active" class="filter-btn">正在進行</button>
+                    <button onclick="setFilter('done')" id="filter-done" class="filter-btn">已完成</button>
+                </div>
+            </div>
+
+            <div id="cardsGrid" class="cards-grid">
+                <!-- Dynamic Cards -->
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // --- Global State ---
+        let currentRating = 5;
+        let currentFilter = 'all';
+
+        // --- Core Functions (Required by Rule 6) ---
+
+        /** 6.1 saveData(newRecord) */
+        function saveData(newRecord) {
+            const records = loadData();
+            records.push(newRecord);
+            localStorage.setItem('records', JSON.stringify(records));
+        }
+
+        /** 6.2 loadData() */
+        function loadData() {
+            const raw = localStorage.getItem('records');
+            return raw ? JSON.parse(raw) : [];
+        }
+
+        /** 6.3 renderList() */
+        function renderList() {
+            const records = loadData();
+            const grid = document.getElementById('cardsGrid');
+            const leaderboard = document.getElementById('leaderboard');
+            const countBadge = document.getElementById('countBadge');
+
+            // 1. Statistics & Leaderboard
+            const stats = {};
+            records.forEach(r => {
+                if(!stats[r.name]) stats[r.name] = { total: 0, count: 0, cat: r.category };
+                stats[r.name].total += r.stars;
+                stats[r.name].count += 1;
+            });
+
+            const top5 = Object.keys(stats)
+                .map(name => ({
+                    name,
+                    avg: (stats[name].total / stats[name].count).toFixed(1),
+                    cat: stats[name].cat
+                }))
+                .sort((a,b) => b.avg - a.avg)
+                .slice(0, 3);
+
+            leaderboard.innerHTML = top5.map((item, index) => `
+                <div class="leaderboard-item">
+                    <div class="rank">0${index + 1}</div>
+                    <div class="leaderboard-info">
+                        <span>${item.cat} • ${item.name}</span>
+                        <strong>${item.avg} ★</strong>
+                    </div>
+                </div>
+            `).join('');
+
+            // 2. Filter & Sort
+            let filtered = records;
+            if (currentFilter !== 'all') {
+                filtered = records.filter(r => (r.status || 'active') === currentFilter);
+            }
+
+            // Sort: active first, then done, then by date desc
+            filtered.sort((a, b) => {
+                const sA = a.status || 'active';
+                const sB = b.status || 'active';
+                if (sA !== sB) return sA === 'active' ? -1 : 1;
+                return new Date(b.createdAt) - new Date(a.createdAt);
+            });
+
+            countBadge.innerText = filtered.length;
+
+            // 3. Render Grid
+            if (filtered.length === 0) {
+                grid.innerHTML = '<div class="empty-state">目前還沒有食評</div>';
+                return;
+            }
+
+            grid.innerHTML = filtered.map(r => {
+                const isDone = (r.status === 'done');
+                return `
+                <div class="card ${isDone ? 'done' : ''}" id="card-${r.id}">
+                    <div class="card-top">
+                        <div class="card-tags">
+                            <span class="tag-cat">${r.category}</span>
+                            ${isDone ? '<span class="tag-done">DONE</span>' : ''}
+                        </div>
+                        <div class="card-time">${formatTime(r.createdAt)}</div>
+                    </div>
+                    <h3>${r.name}</h3>
+                    <div class="card-stars">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</div>
+                    <p>${r.comment}</p>
+                    <div class="card-footer">
+                        <div class="card-left-actions">
+                            <button class="status-toggle-btn" onclick="toggleStatus('${r.id}')">
+                                <span class="status-dot"></span>
+                                ${isDone ? '已打卡' : '打卡'}
+                            </button>
+                            <span class="user-label">匿名</span>
+                        </div>
+                        <button class="agree-btn" onclick="addLike('${r.id}')">+ 1 認同 (${r.likes})</button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // --- Interaction Handlers ---
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            /** 4. Data Schema Compliance */
+            const newRecord = {
+                id: Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+                createdAt: new Date().toISOString(),
+                name: document.getElementById('resName').value,
+                category: document.getElementById('resCat').value,
+                stars: currentRating,
+                comment: document.getElementById('resComment').value,
+                likes: 0,
+                status: "active" // Default
+            };
+
+            saveData(newRecord);
+            e.target.reset();
+            updateStarUI(5);
+            renderList();
+        }
+
+        function toggleStatus(id) {
+            const records = loadData();
+            const record = records.find(r => r.id === id);
+            if (record) {
+                record.status = (record.status === 'done' ? 'active' : 'done');
+                localStorage.setItem('records', JSON.stringify(records));
+                renderList();
+            }
+        }
+
+        function addLike(id) {
+            const records = loadData();
+            const record = records.find(r => r.id === id);
+            if (record) {
+                record.likes += 1;
+                localStorage.setItem('records', JSON.stringify(records));
+                renderList();
+            }
+        }
+
+        function setFilter(f) {
+            currentFilter = f;
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('filter-' + f).classList.add('active');
+            renderList();
+        }
+
+        function updateStarUI(val) {
+            currentRating = val;
+            document.querySelectorAll('.star-box').forEach(s => {
+                if (parseInt(s.dataset.value) <= val) {
+                    s.classList.add('selected');
+                } else {
+                    s.classList.remove('selected');
+                }
+            });
+        }
+
+        function formatTime(iso) {
+            const diff = Date.now() - new Date(iso).getTime();
+            const mins = Math.floor(diff / 60000);
+            if (mins < 1) return '剛剛';
+            if (mins < 60) return mins + ' 分鐘前';
+            const hours = Math.floor(mins / 60);
+            if (hours < 24) return hours + ' 小時前';
+            return Math.floor(hours / 24) + ' 天前';
+        }
+
+        // --- Initialization ---
+
+        // Star selection events
+        document.getElementById('starsInput').addEventListener('click', (e) => {
+            if (e.target.classList.contains('star-box')) {
+                updateStarUI(parseInt(e.target.dataset.value));
+            }
+        });
+
+        // First render
+        updateStarUI(5);
+        renderList();
+    </script>
+</body>
+</html>
