@@ -758,7 +758,7 @@
                     </div>
                     <h3>${escapeHtml(r.name)}</h3>
                     <div class="card-stars">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</div>
-                    <p>${escapeHtml(r.comment)}</p>
+                    <p>${escapeHtml(r.content)}</p>
                     <div class="card-footer">
                         <div class="card-left-actions">
                             <button class="status-toggle-btn" onclick="toggleStatus('${r.id}')">
