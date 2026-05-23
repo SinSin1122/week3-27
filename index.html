@@ -533,16 +533,17 @@
          * Sheet header: ID / CreatedAt / Content / Category / Likes / Status
          */
         function normalizeRecord(record) {
-            return {
-                id: record.id || record.ID || "",
-                createdAt: record.createdAt || record.CreatedAt || "",
-                content: record.content || record.Content || "",
-                category: record.category || record.Category || "其他",
-                likes: Number(record.likes !== undefined ? record.likes : (record.Likes || 0)),
-                status: record.status || record.Status || "active"
-            };
-        }
-
+    return {
+        id: record.id || record.ID || "",
+        createdAt: record.createdAt || record.CreatedAt || "",
+        name: record.name || record.Name || "",
+        content: record.comment || record.Content || record.content || "",  // ← Sheet 是 comment
+        category: record.category || record.Category || "其他",
+        stars: Number(record.stars !== undefined ? record.stars : (record.Stars || 0)),
+        likes: Number(record.likes !== undefined ? record.likes : (record.Likes || 0)),
+        status: record.status || record.Status || "active"
+    };
+}
         /**
          * 從 Google Sheet 用 GET 讀取所有 records
          */
