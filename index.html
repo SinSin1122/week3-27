@@ -442,8 +442,13 @@
 <body>
     <header>
         <div class="logo">CAMPUS<span>BITES</span></div>
-        <div id="leaderboard" class="leaderboard">
-            <!-- Dynamic Leaderboard Items -->
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <button onclick="handleAISummary()" id="aiBtn" style="background: #27272A; color: #F4F4F5; border: 1px solid #3F3F46; padding: 8px 16px; border-radius: 40px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 8px;">
+                ✨ <span id="aiBtnText">AI 摘要</span>
+            </button>
+            <div id="leaderboard" class="leaderboard">
+                <!-- Dynamic Leaderboard Items -->
+            </div>
         </div>
     </header>
 
@@ -524,77 +529,168 @@
         // ============================================
 
         /**
+         * 標準化記錄（支援大小寫欄位）
+         * Sheet header: ID / CreatedAt / Content / Category / Likes / Status
+         */
+        function normalizeRecord(record) {
+            return {
+                id: record.id || record.ID || "",
+                createdAt: record.createdAt || record.CreatedAt || "",
+                content: record.content || record.Content || "",
+                category: record.category || record.Category || "其他",
+                likes: Number(record.likes !== undefined ? record.likes : (record.Likes || 0)),
+                status: record.status || record.Status || "active"
+            };
+        }
+
+        /**
+         * 從 Google Sheet 用 GET 讀取所有 records
+         */
+        async function fetchRecordsFromSheet() {
+            if (APPS_SCRIPT_URL.includes("PASTE")) return null;
+            try {
+                const res = await fetch(APPS_SCRIPT_URL);
+                const data = await res.json();
+                if (data.records && Array.isArray(data.records)) {
+                    return data.records.map(normalizeRecord);
+                }
+                return null;
+            } catch (e) {
+                console.warn("從 Sheet 讀取失敗", e);
+                return null;
+            }
+        }
+
+        /**
          * 同步操作到 Google Sheet
-         * @param {Object} payload - 要傳送的資料 { action, record, id, changes }
          */
         function syncToSheet(payload) {
-            // 如果還沒有設定 Apps Script URL，就跳過
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "PASTE_YOUR_APPS_SCRIPT_URL_HERE") {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("PASTE")) {
                 console.warn('⚠️ APPS_SCRIPT_URL 尚未設定，跳過雲端同步');
                 return;
             }
 
             fetch(APPS_SCRIPT_URL, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'text/plain'
-                },
+                headers: { 'Content-Type': 'text/plain' },
                 body: JSON.stringify(payload)
             })
             .then(response => response.json())
-            .then(data => {
-                console.log('✅ 雲端同步成功:', data);
-            })
-            .catch(error => {
-                console.warn('⚠️ 雲端同步失敗（本機資料不受影響）:', error.message);
-            });
+            .then(data => console.log('✅ 雲端同步成功:', data))
+            .catch(error => console.warn('⚠️ 雲端同步失敗:', error.message));
         }
 
         /**
-         * 從 Google Sheet 載入所有 records（用於初始化）
+         * 載入資料：優先從 Sheet 讀取，失敗則用 localStorage 備份
          */
-        async function loadFromSheet() {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "PASTE_YOUR_APPS_SCRIPT_URL_HERE") {
-                console.warn('⚠️ APPS_SCRIPT_URL 尚未設定，無法從雲端載入');
-                return null;
+        async function loadData() {
+            const remote = await fetchRecordsFromSheet();
+            if (remote && remote.length > 0) {
+                localStorage.setItem('records', JSON.stringify(remote));
+                return remote;
             }
-
-            try {
-                const response = await fetch(APPS_SCRIPT_URL, {
-                    method: 'GET'
-                });
-                const data = await response.json();
-                if (data.status === 'success') {
-                    console.log('✅ 從雲端載入 ' + data.records.length + ' 筆記錄');
-                    return data.records;
-                }
-            } catch (error) {
-                console.warn('⚠️ 無法從雲端載入資料:', error.message);
-            }
-            return null;
+            const localRaw = localStorage.getItem('records');
+            const local = localRaw ? JSON.parse(localRaw) : [];
+            if (local.length > 0) return local;
+            return [];
         }
 
-        // --- Core Functions (Required by Rule 6) ---
+        // --- Core Functions ---
 
-        /** 6.1 saveData(newRecord) */
-        function saveData(newRecord) {
-            const records = loadData();
+        /** 儲存新紀錄 */
+        async function saveData(newRecord) {
+            const records = await loadData();
             records.push(newRecord);
             localStorage.setItem('records', JSON.stringify(records));
             
-            // 🔄 同步到 Google Sheet：新增
+            // 背景同步到 Sheet
             syncToSheet({ action: "create", record: newRecord });
+            
+            // 即時渲染（直接用最新 records，避免重新 GET 舊資料）
+            await renderList(records);
         }
 
-        /** 6.2 loadData() */
-        function loadData() {
-            const raw = localStorage.getItem('records');
-            return raw ? JSON.parse(raw) : [];
+        /** 切換打卡狀態 */
+        async function toggleStatus(id) {
+            const records = await loadData();
+            const record = records.find(r => r.id === id);
+            if (record) {
+                const newStatus = (record.status === 'done' ? 'active' : 'done');
+                record.status = newStatus;
+                localStorage.setItem('records', JSON.stringify(records));
+                
+                syncToSheet({ 
+                    action: "update", 
+                    id: record.id, 
+                    changes: { status: newStatus } 
+                });
+                
+                await renderList(records);
+            }
         }
 
-        /** 6.3 renderList() */
-        function renderList() {
-            const records = loadData();
+        /** 按讚功能 */
+        async function handleLike(id) {
+            const records = await loadData();
+            const index = records.findIndex(r => r.id === id);
+            if (index !== -1) {
+                records[index].likes = (records[index].likes || 0) + 1;
+                localStorage.setItem('records', JSON.stringify(records));
+                
+                syncToSheet({ 
+                    action: "update", 
+                    id: id, 
+                    changes: { likes: records[index].likes } 
+                });
+                
+                await renderList(records);
+            }
+        }
+
+        /** AI 摘要功能 */
+        async function askAI(userPrompt) {
+            const res = await fetch(APPS_SCRIPT_URL, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain" },
+                body: JSON.stringify({ action: "askAI", prompt: userPrompt })
+            });
+            const data = await res.json();
+            return data.result || data.error || "AI 冇回應";
+        }
+
+        async function handleAISummary() {
+            const btn = document.getElementById('aiBtn');
+            const textSpan = document.getElementById('aiBtnText');
+            if (!btn || !textSpan) return;
+            
+            btn.disabled = true;
+            textSpan.textContent = '思考中...';
+            
+            try {
+                const records = await loadData();
+                if (records.length === 0) {
+                    alert('未有吐槽資料可以摘要');
+                    return;
+                }
+                
+                const summaryInput = records.slice(0, 30).map(r =>
+                    `[${r.category}] ${r.content}`
+                ).join('\n');
+                
+                const prompt = '以下是班級吐槽牆嘅留言。請用繁體中文，用 3-5 句概括同學最關心嘅問題、情緒同有冇明顯 patterns:\n\n' + summaryInput;
+                const result = await askAI(prompt);
+                alert(result);
+            } catch (e) {
+                alert('AI 出錯：' + e.message);
+            } finally {
+                btn.disabled = false;
+                textSpan.textContent = 'AI 摘要';
+            }
+        }
+
+        /** 渲染列表 */
+        async function renderList(recordsOverride) {
+            const records = recordsOverride || await loadData();
             const grid = document.getElementById('cardsGrid');
             const leaderboard = document.getElementById('leaderboard');
             const countBadge = document.getElementById('countBadge');
@@ -654,14 +750,14 @@
                 <div class="card ${isDone ? 'done' : ''}" id="card-${r.id}">
                     <div class="card-top">
                         <div class="card-tags">
-                            <span class="tag-cat">${r.category}</span>
+                            <span class="tag-cat">${escapeHtml(r.category)}</span>
                             ${isDone ? '<span class="tag-done">DONE</span>' : ''}
                         </div>
                         <div class="card-time">${formatTime(r.createdAt)}</div>
                     </div>
-                    <h3>${r.name}</h3>
+                    <h3>${escapeHtml(r.name)}</h3>
                     <div class="card-stars">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</div>
-                    <p>${r.comment}</p>
+                    <p>${escapeHtml(r.comment)}</p>
                     <div class="card-footer">
                         <div class="card-left-actions">
                             <button class="status-toggle-btn" onclick="toggleStatus('${r.id}')">
@@ -670,19 +766,27 @@
                             </button>
                             <span class="user-label">匿名</span>
                         </div>
-                        <button class="agree-btn" onclick="addLike('${r.id}')">+ 1 認同 (${r.likes})</button>
+                        <button class="agree-btn" onclick="handleLike('${r.id}')">+ 1 認同 (${r.likes})</button>
                     </div>
                 </div>
                 `;
             }).join('');
         }
 
-        // --- Interaction Handlers ---
+        // --- Helper Functions ---
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
 
-        function handleFormSubmit(e) {
+        async function handleFormSubmit(e) {
             e.preventDefault();
             
-            /** 4. Data Schema Compliance */
             const newRecord = {
                 id: Date.now() + "_" + Math.random().toString(36).slice(2, 6),
                 createdAt: new Date().toISOString(),
@@ -691,48 +795,12 @@
                 stars: currentRating,
                 comment: document.getElementById('resComment').value,
                 likes: 0,
-                status: "active" // Default
+                status: "active"
             };
 
-            saveData(newRecord);
+            await saveData(newRecord);
             e.target.reset();
             updateStarUI(5);
-            renderList();
-        }
-
-        function toggleStatus(id) {
-            const records = loadData();
-            const record = records.find(r => r.id === id);
-            if (record) {
-                const newStatus = (record.status === 'done' ? 'active' : 'done');
-                record.status = newStatus;
-                localStorage.setItem('records', JSON.stringify(records));
-                renderList();
-                
-                // 🔄 同步到 Google Sheet：修改狀態
-                syncToSheet({ 
-                    action: "update", 
-                    id: record.id, 
-                    changes: { status: newStatus } 
-                });
-            }
-        }
-
-        function addLike(id) {
-            const records = loadData();
-            const record = records.find(r => r.id === id);
-            if (record) {
-                record.likes += 1;
-                localStorage.setItem('records', JSON.stringify(records));
-                renderList();
-                
-                // 🔄 同步到 Google Sheet：修改 likes
-                syncToSheet({ 
-                    action: "update", 
-                    id: record.id, 
-                    changes: { likes: record.likes } 
-                });
-            }
         }
 
         function setFilter(f) {
@@ -763,63 +831,6 @@
             return Math.floor(hours / 24) + ' 天前';
         }
 
-        // ============================================
-        // 初始化 - 從雲端同步資料
-        // ============================================
-        async function initializeData() {
-            // 檢查 localStorage 是否已有資料
-            const localRecords = loadData();
-            
-            if (localRecords.length === 0) {
-                // 本機沒有資料，嘗試從雲端載入
-                console.log('📡 本機無資料，嘗試從 Google Sheet 載入...');
-                const cloudRecords = await loadFromSheet();
-                if (cloudRecords && cloudRecords.length > 0) {
-                    localStorage.setItem('records', JSON.stringify(cloudRecords));
-                    console.log('✅ 已從雲端載入 ' + cloudRecords.length + ' 筆記錄');
-                }
-            } else if (APPS_SCRIPT_URL && APPS_SCRIPT_URL !== "PASTE_YOUR_APPS_SCRIPT_URL_HERE") {
-                // 本機有資料，可選：從雲端同步最新資料並合併
-                console.log('📡 本機已有 ' + localRecords.length + ' 筆記錄，嘗試與雲端合併...');
-                const cloudRecords = await loadFromSheet();
-                if (cloudRecords && cloudRecords.length > 0) {
-                    // 合併策略：以 id 為 key，雲端資料優先（除非本機有更新的）
-                    const mergedMap = {};
-                    
-                    // 先放入雲端資料
-                    cloudRecords.forEach(r => { mergedMap[r.id] = r; });
-                    
-                    // 再放入本機資料（如果本機的較新，則覆蓋雲端）
-                    localRecords.forEach(r => {
-                        if (!mergedMap[r.id]) {
-                            // 雲端沒有這筆，加入
-                            mergedMap[r.id] = r;
-                        } else {
-                            // 兩邊都有，比較時間，保留較新的
-                            const cloudTime = new Date(mergedMap[r.id].createdAt).getTime();
-                            const localTime = new Date(r.createdAt).getTime();
-                            if (localTime > cloudTime) {
-                                mergedMap[r.id] = r;
-                            }
-                        }
-                    });
-                    
-                    const mergedRecords = Object.values(mergedMap);
-                    localStorage.setItem('records', JSON.stringify(mergedRecords));
-                    console.log('✅ 合併完成，共 ' + mergedRecords.length + ' 筆記錄');
-                    
-                    // 如果合併後與雲端不同，同步回雲端
-                    if (mergedRecords.length !== cloudRecords.length) {
-                        syncToSheet({ action: "sync", records: mergedRecords });
-                    }
-                }
-            }
-            
-            // 初始化完成，渲染畫面
-            updateStarUI(5);
-            renderList();
-        }
-
         // --- Star selection events ---
         document.getElementById('starsInput').addEventListener('click', (e) => {
             if (e.target.classList.contains('star-box')) {
@@ -828,7 +839,9 @@
         });
 
         // --- 啟動 App ---
-        initializeData();
+        window.onload = async () => {
+            await renderList();
+        };
     </script>
 </body>
 </html>
