@@ -527,17 +527,18 @@
         // ============================================
 
         /**
-         * 標準化記錄（支援大小寫欄位，完美對齊後端 HEADERS）
+         * 標準化記錄（超級防爆型，防空值、防非字串、防浮點數星星）
          */
         function normalizeRecord(record) {
+            if (!record) return null;
             return {
-                id: record.id || record.ID || "",
-                createdAt: record.createdAt || record.CreatedAt || "",
+                id: record.id || record.ID || String(Date.now() + Math.random()),
+                createdAt: record.createdAt || record.CreatedAt || new Date().toISOString(),
                 name: record.name !== undefined ? String(record.name) : (record.Name !== undefined ? String(record.Name) : "未知餐廳"),
                 category: record.category || record.Category || "其他",
-                stars: Number(record.stars !== undefined ? record.stars : (record.Stars || 5)),
+                stars: Math.min(5, Math.max(1, Math.floor(Number(record.stars !== undefined ? record.stars : (record.Stars || 5)) || 5))),
                 comment: record.comment !== undefined ? String(record.comment) : (record.Comment !== undefined ? String(record.Comment) : (record.content !== undefined ? String(record.content) : (record.Content !== undefined ? String(record.Content) : ""))),
-                likes: Number(record.likes !== undefined ? record.likes : (record.Likes || 0)),
+                likes: Number(record.likes !== undefined ? record.likes : (record.Likes || 0)) || 0,
                 status: record.status || record.Status || "active"
             };
         }
@@ -551,7 +552,7 @@
                 const res = await fetch(APPS_SCRIPT_URL);
                 const data = await res.json();
                 if (data.records && Array.isArray(data.records)) {
-                    return data.records.map(normalizeRecord);
+                    return data.records.map(normalizeRecord).filter(Boolean);
                 }
                 return null;
             } catch (e) {
@@ -590,7 +591,7 @@
             }
             const localRaw = localStorage.getItem('records');
             const local = localRaw ? JSON.parse(localRaw) : [];
-            if (local.length > 0) return local;
+            if (local.length > 0) return local.map(normalizeRecord).filter(Boolean);
             return [];
         }
 
@@ -676,7 +677,7 @@
                     `[${r.category}] ${r.name}: ${r.comment} (${r.stars}星)`
                 ).join('\n');
                 
-                const prompt = '以下是校園美食牆嘅食評。請用繁體中文，用 3-5 句概括同學最關心嘅問題、情緒同有冇明顯嘅美食點或雷點規律:\n\n' + summaryInput;
+                const prompt = '以下是校園美食牆嘅食評。請用繁體中文，用 3-5 句概括同學最關心嘅問題、情緒同有冇明顯嘅美食點 or 雷點規律:\n\n' + summaryInput;
                 const result = await askAI(prompt);
                 alert(result);
             } catch (e) {
@@ -695,12 +696,14 @@
                 const leaderboard = document.getElementById('leaderboard');
                 const countBadge = document.getElementById('countBadge');
 
+                if (!grid) return;
+
                 // 1. Statistics & Leaderboard
                 const stats = {};
                 records.forEach(r => {
-                    if (!r.name) return;
+                    if (!r || !r.name) return;
                     if(!stats[r.name]) stats[r.name] = { total: 0, count: 0, cat: r.category };
-                    stats[r.name].total += (Number(r.stars) || 0);
+                    stats[r.name].total += (Number(r.stars) || 5);
                     stats[r.name].count += 1;
                 });
 
@@ -713,20 +716,22 @@
                     .sort((a,b) => b.avg - a.avg)
                     .slice(0, 3);
 
-                leaderboard.innerHTML = top5.map((item, index) => `
-                    <div class="leaderboard-item">
-                        <div class="rank">0${index + 1}</div>
-                        <div class="leaderboard-info">
-                            <span>${escapeHtml(item.cat)} • ${escapeHtml(item.name)}</span>
-                            <strong>${item.avg} ★</strong>
+                if (leaderboard) {
+                    leaderboard.innerHTML = top5.map((item, index) => `
+                        <div class="leaderboard-item">
+                            <div class="rank">0${index + 1}</div>
+                            <div class="leaderboard-info">
+                                <span>${escapeHtml(item.cat)} • ${escapeHtml(item.name)}</span>
+                                <strong>${item.avg} ★</strong>
+                            </div>
                         </div>
-                    </div>
-                `).join('');
+                    `).join('');
+                }
 
                 // 2. Filter & Sort
                 let filtered = records;
                 if (currentFilter !== 'all') {
-                    filtered = records.filter(r => (r.status || 'active') === currentFilter);
+                    filtered = records.filter(r => r && (r.status || 'active') === currentFilter);
                 }
 
                 filtered.sort((a, b) => {
@@ -736,7 +741,7 @@
                     return new Date(b.createdAt) - new Date(a.createdAt);
                 });
 
-                countBadge.innerText = filtered.length;
+                if (countBadge) countBadge.innerText = filtered.length;
 
                 // 3. Render Grid
                 if (filtered.length === 0) {
@@ -745,9 +750,9 @@
                 }
 
                 grid.innerHTML = filtered.map(r => {
+                    if (!r) return '';
                     const isDone = (r.status === 'done');
-                    // 安全計算星星數量，防止小數或非數字導致 repeat() 報錯
-                    const starCount = Math.min(5, Math.max(0, Math.floor(Number(r.stars) || 0)));
+                    const starCount = Math.min(5, Math.max(0, Math.floor(Number(r.stars) || 5)));
                     
                     return `
                     <div class="card ${isDone ? 'done' : ''}" id="card-${r.id}">
@@ -775,15 +780,17 @@
                     `;
                 }).join('');
             } catch (err) {
-                console.error("渲染出錯：", err);
-                document.getElementById('cardsGrid').innerHTML = `<div class="empty-state" style="color: #FF5C00;">資料渲染出錯，請檢查控制台。</div>`;
+                console.error("渲染核心出錯：", err);
+                const grid = document.getElementById('cardsGrid');
+                if (grid) {
+                    grid.innerHTML = `<div class="empty-state" style="color: #FF5C00; border-color: #FF5C00;">資料防爆機制攔截到錯誤，請查看 Console。</div>`;
+                }
             }
         }
 
         // --- Helper Functions ---
         function escapeHtml(str) {
             if (str === null || str === undefined) return '';
-            // 強制轉為字串，防止數字型態（如 999）造成 replace 報錯
             const stringValue = String(str);
             return stringValue.replace(/[&<>]/g, function(m) {
                 if (m === '&') return '&amp;';
@@ -815,7 +822,8 @@
         function setFilter(f) {
             currentFilter = f;
             document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById('filter-' + f).classList.add('active');
+            const btn = document.getElementById('filter-' + f);
+            if (btn) btn.classList.add('active');
             renderList();
         }
 
@@ -853,7 +861,11 @@
 
         // --- 啟動 App ---
         window.onload = async () => {
-            document.getElementById('cardsGrid').innerHTML = '<div class="empty-state">雲端資料同步中，請稍候...</div>';
+            // 加上文字識別標記，幫助識別是否成功刷開快取
+            const grid = document.getElementById('cardsGrid');
+            if (grid) {
+                grid.innerHTML = '<div class="empty-state">雲端資料同步中 (終極防爆版已啟動)...</div>';
+            }
             const records = await loadData();
             await renderList(records);
         };
