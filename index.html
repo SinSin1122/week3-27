@@ -1,3 +1,8 @@
+沒問題！我已經把所有修正好的程式碼（包含**欄位對齊、AI 摘要文字修正，以及新增載入中狀態提示**）完整整合進去了。
+
+你可以直接複製下方整段程式碼，完全替換掉你原本的 HTML 檔案：
+
+```html
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -447,8 +452,7 @@
                 ✨ <span id="aiBtnText">AI 摘要</span>
             </button>
             <div id="leaderboard" class="leaderboard">
-                <!-- Dynamic Leaderboard Items -->
-            </div>
+                </div>
         </div>
     </header>
 
@@ -477,11 +481,11 @@
                 <div class="form-group">
                     <label>評分</label>
                     <div id="starsInput" class="stars-input">
-                        <span class="star-box" data-value="1">★</span>
-                        <span class="star-box" data-value="2">★</span>
-                        <span class="star-box" data-value="3">★</span>
-                        <span class="star-box" data-value="4">★</span>
-                        <span class="star-box" data-value="5">★</span>
+                        <span class="star-box selected" data-value="1">★</span>
+                        <span class="star-box selected" data-value="2">★</span>
+                        <span class="star-box selected" data-value="3">★</span>
+                        <span class="star-box selected" data-value="4">★</span>
+                        <span class="star-box selected" data-value="5">★</span>
                     </div>
                 </div>
 
@@ -509,8 +513,7 @@
             </div>
 
             <div id="cardsGrid" class="cards-grid">
-                <!-- Dynamic Cards -->
-            </div>
+                </div>
         </section>
     </main>
 
@@ -529,15 +532,16 @@
         // ============================================
 
         /**
-         * 標準化記錄（支援大小寫欄位）
-         * Sheet header: ID / CreatedAt / Content / Category / Likes / Status
+         * 標準化記錄（支援大小寫欄位，完美對齊後端 HEADERS）
          */
         function normalizeRecord(record) {
             return {
                 id: record.id || record.ID || "",
                 createdAt: record.createdAt || record.CreatedAt || "",
-                content: record.content || record.Content || "",
+                name: record.name || record.Name || "未知餐廳",
                 category: record.category || record.Category || "其他",
+                stars: Number(record.stars !== undefined ? record.stars : (record.Stars || 5)),
+                comment: record.comment || record.Comment || record.content || record.Content || "",
                 likes: Number(record.likes !== undefined ? record.likes : (record.Likes || 0)),
                 status: record.status || record.Status || "active"
             };
@@ -655,7 +659,7 @@
                 body: JSON.stringify({ action: "askAI", prompt: userPrompt })
             });
             const data = await res.json();
-            return data.result || data.error || "AI 冇回應";
+            return data.result || data.error || "AI 暫時冇回應";
         }
 
         async function handleAISummary() {
@@ -669,15 +673,16 @@
             try {
                 const records = await loadData();
                 if (records.length === 0) {
-                    alert('未有吐槽資料可以摘要');
+                    alert('未有食評資料可以摘要');
                     return;
                 }
                 
+                // 串接店名、評論與評分提供給 Gemini
                 const summaryInput = records.slice(0, 30).map(r =>
-                    `[${r.category}] ${r.content}`
+                    `[${r.category}] ${r.name}: ${r.comment} (${r.stars}星)`
                 ).join('\n');
                 
-                const prompt = '以下是班級吐槽牆嘅留言。請用繁體中文，用 3-5 句概括同學最關心嘅問題、情緒同有冇明顯 patterns:\n\n' + summaryInput;
+                const prompt = '以下是校園美食牆嘅食評。請用繁體中文，用 3-5 句概括同學最關心嘅問題、情緒同有冇明顯嘅美食點或雷點規律:\n\n' + summaryInput;
                 const result = await askAI(prompt);
                 alert(result);
             } catch (e) {
@@ -695,9 +700,10 @@
             const leaderboard = document.getElementById('leaderboard');
             const countBadge = document.getElementById('countBadge');
 
-            // 1. Statistics & Leaderboard
+            // 1. Statistics & Leaderboard (防止未填寫餐廳名稱導致報錯)
             const stats = {};
             records.forEach(r => {
+                if (!r.name) return;
                 if(!stats[r.name]) stats[r.name] = { total: 0, count: 0, cat: r.category };
                 stats[r.name].total += r.stars;
                 stats[r.name].count += 1;
@@ -840,8 +846,13 @@
 
         // --- 啟動 App ---
         window.onload = async () => {
-            await renderList();
+            // 新增動態載入中提示，優化使用者初次載入體驗
+            document.getElementById('cardsGrid').innerHTML = '<div class="empty-state">雲端資料同步中，請稍候...</div>';
+            const records = await loadData();
+            await renderList(records);
         };
     </script>
 </body>
 </html>
+
+```
